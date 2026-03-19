@@ -355,8 +355,8 @@ function renderCustomerList() {
     }
 
     return `<div class="customer-card${sel}" onclick="selectCustomer('${c.id}')">
-      <div class="flex-1 min-w-0"><div class="flex items-center gap-2"><span class="font-medium">${c.name}</span><span class="text-xs text-amber-400">${c.gender==='male'?'남':'여'}</span></div><p class="text-xs text-amber-700 truncate">${c.phone||''} ${lastDate?'· 최근 '+lastDate:''}</p></div>
-      <div class="text-right flex-shrink-0"><span class="text-xs text-amber-400">${visits.length}회</span></div></div>`;
+      <div class="flex items-center gap-2"><span class="font-medium">${c.name}</span><span class="text-xs text-amber-400">${c.gender==='male'?'남':'여'}</span></div>
+      <div class="flex items-center gap-3 ml-auto flex-shrink-0"><span class="text-xs text-amber-700">${c.phone||''}</span>${lastDate?'<span class="text-xs text-amber-700">'+lastDate+'</span>':''}<span class="text-xs text-amber-400">${visits.length}회</span></div></div>`;
   }).join('');
 }
 

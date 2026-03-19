@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "imagetracerjs": "^1.2.6",
+    "puppeteer": "^24.39.1"
+  }
+}
