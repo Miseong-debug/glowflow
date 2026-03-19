@@ -90,6 +90,7 @@ let custSheetMode = 'new';
 let custGender = 'female';
 let activeMainTab = 'clients';
 let subViewStack = []; // for session/admin sub-views
+let customerSort = 'recent'; // 'recent' | 'name' | 'visits' | 'registered'
 
 // Admin
 let adminView='front',adminActivePart='어깨';
@@ -180,6 +181,35 @@ function seedIfEmpty(){
 // ════════════════════════════════════════
 //  NAVIGATION
 // ════════════════════════════════════════
+function renderSelectedCustomerBar(tab) {
+  const barEl = document.getElementById('selected-customer-bar-' + tab);
+  if (!barEl) return;
+  if (!currentCustomerId) {
+    barEl.innerHTML = '';
+    return;
+  }
+  const c = db.customers.find(x => x.id === currentCustomerId);
+  if (!c) { barEl.innerHTML = ''; return; }
+  const visits = getCustomerVisits(c.id);
+  const lastDate = c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('ko') : '-';
+  barEl.innerHTML = `
+    <div class="selected-customer-bar">
+      <div class="flex items-center gap-3 flex-1 min-w-0">
+        <div class="min-w-0">
+          <span class="font-medium text-sm">${c.name}</span>
+          <span class="text-xs text-amber-400 ml-1">${c.gender==='male'?'남':'여'}</span>
+          <p class="text-xs text-amber-700 truncate">${c.phone||''} · ${visits.length}회 방문 · 최근 ${lastDate}</p>
+        </div>
+      </div>
+      <button class="btn-ghost text-xs" style="padding:0 14px;height:32px;font-size:12px;" onclick="switchTab('clients')">변경</button>
+    </div>`;
+}
+
+function renderNoCustomerMessage(tab) {
+  const contentEl = document.getElementById(tab + '-content');
+  if (contentEl) contentEl.innerHTML = `<div class="text-center py-20"><div class="empty-illustration"><svg width="48" height="48" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><circle cx="24" cy="14" r="8"/><path d="M8 42c0-8.8 7.2-16 16-16s16 7.2 16 16"/></svg></div><p class="text-main font-medium mt-4 text-base">고객을 먼저 선택해주세요</p><p class="text-muted text-sm mt-2">Clients 탭에서 고객을 선택하면<br>해당 고객의 데이터를 확인할 수 있습니다</p></div>`;
+}
+
 function switchTab(tab) {
   activeMainTab = tab;
   if (typeof saveState === 'function') saveState();
@@ -192,21 +222,17 @@ function switchTab(tab) {
   const viewId = 'view-' + tab;
   document.getElementById(viewId).classList.add('active');
 
-  // Clean up profile card when leaving clients tab
-  const existingProfile = document.getElementById('customer-profile');
-  if (existingProfile) existingProfile.remove();
-
   if (tab === 'clients') {
     renderCustomerList();
-    if (currentCustomerId) renderCustomerProfile();
-  } else if (!currentCustomerId) {
-    // No customer selected — show empty message in content area only
-    const contentEl = document.getElementById(tab + '-content');
-    if (contentEl) contentEl.innerHTML = `<div class="text-center py-20"><div class="empty-illustration"><svg width="48" height="48" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><circle cx="24" cy="14" r="8"/><path d="M8 42c0-8.8 7.2-16 16-16s16 7.2 16 16"/></svg></div><p class="text-main font-medium mt-4 text-base">고객을 먼저 선택해주세요</p><p class="text-muted text-sm mt-2">Clients 탭에서 고객을 선택하면<br>해당 고객의 데이터를 확인할 수 있습니다</p></div>`;
   } else {
-    if (tab === 'analysis') renderAnalysis();
-    else if (tab === 'history') renderHistory();
-    else if (tab === 'report') renderReport();
+    renderSelectedCustomerBar(tab);
+    if (!currentCustomerId) {
+      renderNoCustomerMessage(tab);
+    } else {
+      if (tab === 'analysis') renderAnalysis();
+      else if (tab === 'history') renderHistory();
+      else if (tab === 'report') renderReport();
+    }
   }
 }
 
@@ -234,11 +260,38 @@ function openAdmin() { pushSubView('view-admin', '영역 편집'); initAdmin(); 
 // ════════════════════════════════════════
 //  TAB 1: CLIENTS
 // ════════════════════════════════════════
+const SORT_OPTIONS = [
+  { id: 'recent', label: '최근 방문순' },
+  { id: 'name', label: '이름순' },
+  { id: 'visits', label: '방문 많은순' },
+  { id: 'registered', label: '등록순' },
+];
+
+function setCustomerSort(sort) {
+  customerSort = sort;
+  renderCustomerList();
+}
+
 function renderCustomerList() {
   const q = (document.getElementById('search-input')?.value || '').toLowerCase();
   const list = document.getElementById('customer-list');
+  const sortBar = document.getElementById('sort-bar');
+  if (sortBar) {
+    sortBar.innerHTML = SORT_OPTIONS.map(o =>
+      `<button class="sort-pill${customerSort===o.id?' active':''}" onclick="setCustomerSort('${o.id}')">${o.label}</button>`
+    ).join('');
+  }
+
   let filtered = db.customers.filter(c => c.name.toLowerCase().includes(q) || (c.phone||'').includes(q));
-  filtered.sort((a,b) => (b.lastVisit||b.createdAt) - (a.lastVisit||a.createdAt));
+  if (customerSort === 'name') {
+    filtered.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+  } else if (customerSort === 'visits') {
+    filtered.sort((a,b) => getCustomerVisits(b.id).length - getCustomerVisits(a.id).length);
+  } else if (customerSort === 'registered') {
+    filtered.sort((a,b) => b.createdAt - a.createdAt);
+  } else {
+    filtered.sort((a,b) => (b.lastVisit||b.createdAt) - (a.lastVisit||a.createdAt));
+  }
   if (filtered.length === 0) {
     list.innerHTML = `<div class="text-center py-16"><div class="empty-illustration"><svg width="48" height="48" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><circle cx="24" cy="14" r="8"/><path d="M8 42c0-8.8 7.2-16 16-16s16 7.2 16 16"/></svg></div><p class="text-main font-medium mt-4 text-base">${q?'검색 결과가 없습니다':'등록된 고객이 없습니다'}</p></div>`;
     return;
@@ -246,88 +299,78 @@ function renderCustomerList() {
   list.innerHTML = filtered.map(c => {
     const visits = getCustomerVisits(c.id);
     const lastDate = c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('ko') : '';
-    const sel = currentCustomerId === c.id ? ' selected-card' : '';
-    return `<div class="customer-card ${sel}" onclick="selectCustomer('${c.id}')">
-      
+    const isSelected = currentCustomerId === c.id;
+    const sel = isSelected ? ' selected-card' : '';
+
+    if (isSelected) {
+      const regDate = new Date(c.createdAt).toLocaleDateString('ko');
+      let recentConcerns = '';
+      if (visits.length > 0) {
+        const last = visits[visits.length - 1];
+        const tags = (last.zones||[]).flatMap(z => (z.concerns||[]).map(cc =>
+          `<span class="tag-pill tag-pill-sm sev-bg-${cc.severity}" style="color:white;border:none;">${findConcernLabel(cc.id)}</span>`
+        ));
+        recentConcerns = tags.join(' ');
+      }
+      return `<div class="customer-card selected-card" onclick="selectCustomer('${c.id}')" style="flex-direction:column;align-items:stretch;">
+        <div class="flex items-center gap-4">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-base">${c.name}</span>
+              <span class="text-xs text-amber-400">${c.gender==='male'?'남':'여'}</span>
+            </div>
+            <p class="text-xs text-amber-700 truncate">${c.phone||''} ${lastDate?'· 최근 '+lastDate:''}</p>
+          </div>
+          <button class="btn-icon" onclick="event.stopPropagation();editCurrentCustomer()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11.5 2.5l3 3L5 15H2v-3L11.5 2.5z"/></svg>
+          </button>
+        </div>
+        <div class="grid grid-cols-3 gap-3 mt-3">
+          <div class="text-center p-2 rounded-lg" style="background:#F4F5F7;">
+            <p class="text-lg font-semibold" style="color:var(--text-main);">${visits.length}</p>
+            <p class="text-xs text-amber-700">방문</p>
+          </div>
+          <div class="text-center p-2 rounded-lg" style="background:#F4F5F7;">
+            <p class="text-xs text-amber-700 mt-1">등록일</p>
+            <p class="text-xs font-medium mt-0.5">${regDate}</p>
+          </div>
+          <div class="text-center p-2 rounded-lg" style="background:#F4F5F7;">
+            <p class="text-xs text-amber-700 mt-1">최근 방문</p>
+            <p class="text-xs font-medium mt-0.5">${lastDate||'-'}</p>
+          </div>
+        </div>
+        ${c.memo ? '<p class="text-sm text-amber-800 mt-3">' + c.memo + '</p>' : ''}
+        ${recentConcerns ? '<div class="mt-3"><p class="text-xs text-amber-400 mb-1">최근 관심사</p><div class="flex flex-wrap gap-1">' + recentConcerns + '</div></div>' : ''}
+        <div class="flex gap-2 mt-3">
+          <button class="btn-ghost flex-1" onclick="event.stopPropagation();goAnalysis('face')" style="background:rgba(220, 167, 165,0.06);border-color:transparent;color:var(--text-main);">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="7" r="5"/><path d="M4 18c0-3 2.2-5 5-5s5 2 5 5"/><path d="M7 6.5h.01M11 6.5h.01M8 9.5c.5.5 1.5.5 2 0"/></svg>
+            Facial
+          </button>
+          <button class="btn-ghost flex-1" onclick="event.stopPropagation();goAnalysis('body')" style="background:rgba(220, 167, 165,0.06);border-color:transparent;color:var(--text-main);">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 2v4M9 14v4M5 6l-2 4 2 4M13 6l2 4-2 4M6 6h6M6 14h6"/></svg>
+            Body
+          </button>
+        </div>
+      </div>`;
+    }
+
+    return `<div class="customer-card${sel}" onclick="selectCustomer('${c.id}')">
       <div class="flex-1 min-w-0"><div class="flex items-center gap-2"><span class="font-medium">${c.name}</span><span class="text-xs text-amber-400">${c.gender==='male'?'남':'여'}</span></div><p class="text-xs text-amber-700 truncate">${c.phone||''} ${lastDate?'· 최근 '+lastDate:''}</p></div>
       <div class="text-right flex-shrink-0"><span class="text-xs text-amber-400">${visits.length}회</span></div></div>`;
   }).join('');
 }
 
 function selectCustomer(id) {
-  currentCustomerId = id;
+  // Toggle: 이미 선택된 고객을 다시 터치하면 선택 해제
+  if (currentCustomerId === id) {
+    currentCustomerId = null;
+  } else {
+    currentCustomerId = id;
+  }
   if (typeof saveState === 'function') saveState();
   renderCustomerList();
-  renderCustomerProfile();
 }
 
-function renderCustomerProfile() {
-  const c = db.customers.find(x => x.id === currentCustomerId);
-  if (!c) return;
-  const visits = getCustomerVisits(currentCustomerId);
-  const lastDate = c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('ko') : '-';
-  const regDate = new Date(c.createdAt).toLocaleDateString('ko');
-
-  // Find most recent concerns
-  let recentConcerns = '';
-  if (visits.length > 0) {
-    const last = visits[visits.length - 1];
-    const tags = (last.zones||[]).flatMap(z => (z.concerns||[]).map(cc =>
-      `<span class="tag-pill tag-pill-sm sev-bg-${cc.severity}" style="color:white;border:none;">${findConcernLabel(cc.id)}</span>`
-    ));
-    recentConcerns = tags.join(' ');
-  }
-
-  const profileHTML = `
-    <div id="customer-profile" class="glass-solid p-6 mb-6 mx-1" style="animation:viewIn 0.25s ease;">
-      <div class="flex items-center justify-between mb-3">
-        <div class="flex items-center gap-3">
-          
-          <div>
-            <h2 class="text-lg font-semibold">${c.name}</h2>
-            <p class="text-sm text-amber-700">${c.phone || '전화번호 미등록'} · ${c.gender === 'male' ? '남성' : '여성'}</p>
-          </div>
-        </div>
-        <button class="btn-icon" onclick="editCurrentCustomer()">
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11.5 2.5l3 3L5 15H2v-3L11.5 2.5z"/></svg>
-        </button>
-      </div>
-      <div class="grid grid-cols-3 gap-3 mb-3">
-        <div class="text-center p-2 rounded-lg" style="background: #F4F5F7;">
-          <p class="text-lg font-semibold" style="color: var(--text-main);">${visits.length}</p>
-          <p class="text-xs text-amber-700">방문</p>
-        </div>
-        <div class="text-center p-2 rounded-lg" style="background: #F4F5F7;">
-          <p class="text-xs text-amber-700 mt-1">등록일</p>
-          <p class="text-xs font-medium mt-0.5">${regDate}</p>
-        </div>
-        <div class="text-center p-2 rounded-lg" style="background: #F4F5F7;">
-          <p class="text-xs text-amber-700 mt-1">최근 방문</p>
-          <p class="text-xs font-medium mt-0.5">${lastDate}</p>
-        </div>
-      </div>
-      ${c.memo ? '<p class="text-sm text-amber-800 mb-3">' + c.memo + '</p>' : ''}
-      ${recentConcerns ? '<div class="mb-3"><p class="text-xs text-amber-400 mb-1">최근 관심사</p><div class="flex flex-wrap gap-1">' + recentConcerns + '</div></div>' : ''}
-      <div class="flex gap-2">
-        <button class="btn-ghost flex-1" onclick="goAnalysis('face')" style="background:rgba(251,113,133,0.06);border-color:transparent;color:var(--text-main);">
-          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="7" r="5"/><path d="M4 18c0-3 2.2-5 5-5s5 2 5 5"/><path d="M7 6.5h.01M11 6.5h.01M8 9.5c.5.5 1.5.5 2 0"/></svg>
-          Facial
-        </button>
-        <button class="btn-ghost flex-1" onclick="goAnalysis('body')" style="background:rgba(251,113,133,0.06);border-color:transparent;color:var(--text-main);">
-          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 2v4M9 14v4M5 6l-2 4 2 4M13 6l2 4-2 4M6 6h6M6 14h6"/></svg>
-          Body
-        </button>
-      </div>
-    </div>`;
-
-  // Remove existing profile if any
-  const existing = document.getElementById('customer-profile');
-  if (existing) existing.remove();
-
-  // Insert after search bar
-  const listEl = document.getElementById('customer-list');
-  listEl.insertAdjacentHTML('beforebegin', profileHTML);
-}
 
 function openNewCustomer() {
   custSheetMode='new';custGender='female';

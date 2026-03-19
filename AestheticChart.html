@@ -18,6 +18,25 @@
 </head>
 
 <body class="bg-dots">
+  <!-- SVG Filter to precisely trace and digitize pencil sketches into solid graphic lines -->
+  <svg width="0" height="0" style="position:absolute;z-index:-1;">
+    <filter id="pencil-to-graphic">
+      <feColorMatrix type="saturate" values="0"/>
+      <!-- Sharp Threshold: Turn pencil smudges into solid crisp lines -->
+      <feComponentTransfer>
+        <feFuncR type="linear" slope="15" intercept="-8.0"/>
+        <feFuncG type="linear" slope="15" intercept="-8.0"/>
+        <feFuncB type="linear" slope="15" intercept="-8.0"/>
+      </feComponentTransfer>
+      <!-- Recolor the black lines to brand's warm dark neutral #4A3C38 -->
+      <feColorMatrix type="matrix" values="
+        0.71 0 0 0 0.29
+        0 0.765 0 0 0.235
+        0 0 0.78 0 0.22
+        0 0 0 1 0
+      "/>
+    </filter>
+  </svg>
 <div class="app-container" id="app">
 
   <!-- ═══ TOP NAV ═══ -->
@@ -57,6 +76,7 @@
       </div>
     </div>
     
+    <div id="sort-bar" class="sort-bar flex items-center gap-2 pl-1 mb-2 flex-shrink-0"></div>
     <div id="customer-list" class="flex-1 overflow-y-auto pb-32 space-y-4 pr-2 pl-1 rounded-3xl"></div>
     
     <button class="fab no-print" onclick="openNewCustomer()">
@@ -75,6 +95,7 @@
       </div>
       <div id="analysis-mode-bar" class="flex items-center gap-6"></div>
     </div>
+    <div id="selected-customer-bar-analysis" class="selected-customer-bar-wrap"></div>
 
     <!-- 3 columns -->
     <div class="flex gap-3 px-4 pt-1 pb-3 flex-1 overflow-hidden">
@@ -100,6 +121,7 @@
 
   <!-- ═══ TAB 3: History ═══ -->
   <div id="view-history" class="view content-area"><div class="view-header"><h1 class="view-title">Session History</h1></div>
+    <div id="selected-customer-bar-history" class="selected-customer-bar-wrap"></div>
     <div class="flex-1 overflow-y-auto px-5 pb-24" id="history-content"></div>
     <button class="fab no-print" onclick="startNewSession()">
       <svg width="24" height="24" fill="none" stroke="white" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
@@ -108,6 +130,7 @@
 
   <!-- ═══ TAB 4: Report ═══ -->
   <div id="view-report" class="view content-area"><div class="view-header"><h1 class="view-title">Report & Stats</h1></div>
+    <div id="selected-customer-bar-report" class="selected-customer-bar-wrap"></div>
     <div class="flex-1 overflow-y-auto px-5 pb-8" id="report-content"></div>
   </div>
 
